@@ -5,7 +5,7 @@
  *
  * @package Turnstile
  * @author NKXingXh
- * @version 1.2.0
+ * @version 1.2.1
  * @link https://blog.nkxingxh.top/
  */
 
@@ -94,20 +94,20 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
             return;
         }
         $siteKey = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->siteKey;
-        $secretKey = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->secretKey;
-        $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
-        if ($siteKey != "" && $secretKey != "") {
+        if ($siteKey != "") {
+            $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
+            $action = 'comment';
             echo <<<EOF
             <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
             <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
             <script id="typecho-turnstile-script">
-            window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',callback:function(token){console.log(`Challenge Success`)},})};
+            window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',action:'$action',callback:function(token){console.log(`Challenge Success`)},})};
             </script>
             <div id="cf-turnstile">正在加载验证组件</div>
             <!--div class="cf-turnstile" data-sitekey="$siteKey" data-theme="$theme"></div-->
 EOF;
         } else {
-            throw new Typecho_Widget_Exception(_t('No Turnstile Site/Secret Keys! Please set it/them!'));
+            throw new Typecho_Widget_Exception(_t('No Turnstile Site Key! Please set it.'));
         }
     }
 
@@ -123,16 +123,20 @@ EOF;
         }
 
         $siteKey = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->siteKey;
-        $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
-
-        echo <<<EOF
-        <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
-        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
-        <script>
-            \$('#password').parent().after('<div id="cf-turnstile">正在加载验证组件</div>');window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',callback:function(token){console.log(`Challenge Success`)},})};
-            //$('#password').parent().after('<div class="cf-turnstile" data-sitekey="$siteKey" data-theme="$theme"></div>');
-        </script>
+        if ($siteKey != "") {
+            $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
+            $action = 'login';
+            echo <<<EOF
+            <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
+            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
+            <script>
+                \$('#password').parent().after('<div id="cf-turnstile">正在加载验证组件</div>');window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',action:'$action',callback:function(token){console.log(`Challenge Success`)},})};
+                //$('#password').parent().after('<div class="cf-turnstile" data-sitekey="$siteKey" data-theme="$theme"></div>');
+            </script>
 EOF;
+        } else {
+            throw new Typecho_Widget_Exception(_t('No Turnstile Site Key! Please set it.'));
+        }
     }
 
     public static function verifyTurnstile_comment($comments, $obj)
@@ -152,7 +156,11 @@ EOF;
             }
             $resp = self::getTurnstileResult($_POST['cf-turnstile-response'], $secretKey, $strictMode);
             if ($resp['success']) {
-                return $comments;
+                if ($resp['action'] == 'comment') {
+                    return $comments;
+                } else {
+                    throw new Typecho_Widget_Exception(_t(self::getTurnstileResultMsg('场景验证失败')));
+                }
             } else {
                 throw new Typecho_Widget_Exception(_t(self::getTurnstileResultMsg($resp)));
             }
@@ -174,6 +182,10 @@ EOF;
                 $strictMode = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->strictMode == 'enable';
                 $resp = self::getTurnstileResult($_POST['cf-turnstile-response'], $secretKey, $strictMode);
                 if ($resp['success']) {
+                    if ($resp['action'] != 'login') {
+                        self::loginFailed(self::getTurnstileResultMsg('场景验证失败'));
+                        return false;
+                    }
                     //return true;
                 } else {
                     self::loginFailed(self::getTurnstileResultMsg($resp));
@@ -244,7 +256,7 @@ EOF;
 
                 case 'missing-input-secret':
                 case 'invalid-input-secret':
-                    return '未设置或设置了无效的 siteKey/secretKey';
+                    return '未设置或设置了无效的 secretKey';
 
                 default:
                     return '你食不食人啊? (恼) 如果是的话再试一次?';
