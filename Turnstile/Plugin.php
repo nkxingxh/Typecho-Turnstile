@@ -7,6 +7,7 @@
  * @author NKXingXh
  * @version 1.2.1
  * @link https://blog.nkxingxh.top/
+ * @license https://www.gnu.org/licenses/agpl-3.0.html
  */
 
 use Typecho\Common;
