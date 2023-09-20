@@ -5,7 +5,7 @@
  *
  * @package Turnstile
  * @author NKXingXh
- * @version 1.2.1
+ * @version 1.3.0
  * @link https://blog.nkxingxh.top/
  * @license https://www.gnu.org/licenses/agpl-3.0.html
  */
@@ -26,7 +26,7 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
     public static function activate()
     {
         Typecho_Plugin::factory('Widget_Feedback')->comment = array(__CLASS__, 'verifyTurnstile_comment');
-
+        Typecho_Plugin::factory('Widget_Archive')->header = array(__CLASS__, 'header');
         Typecho_Plugin::factory('admin/footer.php')->end = array(__CLASS__, 'output_login');
         Typecho_Plugin::factory('Widget_User')->hashValidate = array(__CLASS__, 'verifyTurnstile_login');
     }
@@ -79,11 +79,23 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
             'enable' => '启用',
             'disable' => '禁用'
         ), 'disable', _t('严格模式'), _t('启用后将会严格判断提交评论与验证时使用的IP是否一致'));
+        $pjaxSupport = new Typecho_Widget_Helper_Form_Element_Radio('pjaxSupport', array(
+            'enable' => '启用',
+            'disable' => '禁用'
+        ), 'disable', _t('PJAX 支持'), _t('启用后将会在 &lt;header&gt; 中加载验证 JS 并改变部分逻辑以尽量适配 PJAX。'));
         $form->addInput($siteKey);
         $form->addInput($secretKey);
         $form->addInput($enableActions);
         $form->addInput($theme);
         $form->addInput($strictMode);
+        $form->addInput($pjaxSupport);
+    }
+
+    public static function header()
+    {
+        if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->pjaxSupport == 'enable') {
+            echo '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>';
+        }
     }
 
     /**
@@ -98,15 +110,27 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
         if ($siteKey != "") {
             $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
             $action = 'comment';
-            echo <<<EOF
-            <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
-            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
-            <script id="typecho-turnstile-script">
-            window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',action:'$action',callback:function(token){console.log(`Challenge Success`)},})};
-            </script>
+            if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->pjaxSupport == 'enable') {
+                echo <<<EOL
+                <script id="typecho-turnstile-script">
+                $(document).ready(
+                    function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',action:'$action',callback:function(token){console.log(`Challenge Success`)},})}
+                );
+                </script>
+                EOL;
+            } else {
+                echo <<<EOL
+                <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
+                <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
+                <script id="typecho-turnstile-script">
+                window.onloadTurnstileCallback=function(){\$('#cf-turnstile').html('');eval(function(p,a,c,k,e,r){e=String;if('0'.replace(0,e)==0){while(c--)r[e(c)]=k[c];k=[function(e){return r[e]||e}];e=function(){return'[1-4]'};c=1};while(c--)if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);return p}('console.log(\\' %c Turnstile for Typecho %c https://blog.nkxingxh.top/archives/240/\\',\\'1:white;2:#31655f;3:4 0\\',\\'1:#eee;2:#444;3:4\\');',[],5,'|color|background|padding|5px'.split('|'),0,{}));turnstile.render('#cf-turnstile',{sitekey:'$siteKey',theme:'$theme',action:'$action',callback:function(token){console.log(`Challenge Success`)},})};
+                </script>
+                EOL;
+            }
+            echo <<<EOL
             <div id="cf-turnstile">正在加载验证组件</div>
             <!--div class="cf-turnstile" data-sitekey="$siteKey" data-theme="$theme"></div-->
-EOF;
+            EOL;
         } else {
             throw new Typecho_Widget_Exception(_t('No Turnstile Site Key! Please set it.'));
         }
