@@ -5,7 +5,7 @@
  *
  * @package Turnstile
  * @author NKXingXh
- * @version 1.3.0
+ * @version 1.3.1
  * @link https://blog.nkxingxh.top/
  * @license https://www.gnu.org/licenses/agpl-3.0.html
  */
@@ -15,6 +15,11 @@ use Utils\PasswordHash;
 
 class Turnstile_Plugin implements Typecho_Plugin_Interface
 {
+    /**
+     * 是否启用救援模式
+     * 启用后，将跳过登录验证，适用于无法通过验证时临时排查问题
+     */
+    private const RESCUE_MODE = false;
 
     /**
      * 激活插件方法,如果激活失败,直接抛出异常
@@ -63,7 +68,7 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
      */
     public static function config(Typecho_Widget_Helper_Form $form)
     {
-        $siteKeyDescription = _t("Please create a site in <a href='https://dash.cloudflare.com/'>Cloudflare Turnstile</a>");
+        $siteKeyDescription = _t("请在 <a href='https://dash.cloudflare.com/'>Cloudflare Turnstile</a> 中创建站点");
         $siteKey = new Typecho_Widget_Helper_Form_Element_Text('siteKey', NULL, '', _t('Site Key'), $siteKeyDescription);
         $secretKey = new Typecho_Widget_Helper_Form_Element_Text('secretKey', NULL, '', _t('Serect Key'), _t(''));
         $enableActions = new Typecho_Widget_Helper_Form_Element_Checkbox('enableActions', [
@@ -83,18 +88,26 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
             'enable' => '启用',
             'disable' => '禁用'
         ), 'disable', _t('PJAX 支持'), _t('启用后将会在 &lt;header&gt; 中加载验证 JS 并改变部分逻辑以尽量适配 PJAX。'));
+        $jQueryImport = new Typecho_Widget_Helper_Form_Element_Radio('jQueryImport', array(
+            'enable' => '启用',
+            'disable' => '禁用'
+        ), 'disable', _t('引入 jQuery'), _t('启用后将会引入 jQuery。适用于没有引入 jQuery 的站点，如果主题或者其他插件已经引入了 jQuery，请不要启用。'));
         $form->addInput($siteKey);
         $form->addInput($secretKey);
         $form->addInput($enableActions);
         $form->addInput($theme);
         $form->addInput($strictMode);
         $form->addInput($pjaxSupport);
+        $form->addInput($jQueryImport);
     }
 
     public static function header()
     {
         if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->pjaxSupport == 'enable') {
             echo '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>';
+            if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->jQueryImport == 'enable') {
+                echo '<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.6.0/jquery.min.js" type="application/javascript"></script>';
+            }
         }
     }
 
@@ -119,6 +132,9 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
                 </script>
                 EOL;
             } else {
+                if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->jQueryImport == 'enable') {
+                    echo '<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.6.0/jquery.min.js" type="application/javascript"></script>';
+                }
                 echo <<<EOL
                 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
                 <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
@@ -132,7 +148,7 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
             <!--div class="cf-turnstile" data-sitekey="$siteKey" data-theme="$theme"></div-->
             EOL;
         } else {
-            throw new Typecho_Widget_Exception(_t('No Turnstile Site Key! Please set it.'));
+            throw new Typecho_Widget_Exception(_t('请先设置 Turnstile Site Key!'));
         }
     }
 
@@ -151,6 +167,9 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
         if ($siteKey != "") {
             $theme = Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->theme;
             $action = 'login';
+            if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->jQueryImport == 'enable') {
+                echo '<script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.6.0/jquery.min.js" type="application/javascript"></script>';
+            }
             echo <<<EOF
             <!--script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script-->
             <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
@@ -160,7 +179,7 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
             </script>
 EOF;
         } else {
-            throw new Typecho_Widget_Exception(_t('No Turnstile Site Key! Please set it.'));
+            throw new Typecho_Widget_Exception(_t('请先设置 Turnstile Site Key!'));
         }
     }
 
@@ -197,7 +216,7 @@ EOF;
     public static function verifyTurnstile_login($password, $hash)
     {
         $enableTurnstile = in_array('login', Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->enableActions);
-        if ($enableTurnstile) {
+        if ($enableTurnstile && !self::RESCUE_MODE) {
             if (isset($_POST['cf-turnstile-response'])) {
                 if (empty($_POST['cf-turnstile-response'])) {
                     Typecho_Widget::widget('Widget_Notice')->set(_t('请先完成验证'), 'error');
@@ -255,6 +274,9 @@ EOF;
         ));
         $response = file_get_contents("https://challenges.cloudflare.com/turnstile/v0/siteverify", false, $stream);
         $response = json_decode($response, true);
+        if (empty($response)) {
+            throw new Typecho_Widget_Exception(_t('Turnstile 无响应，请检查服务器网络连接'));
+        }
         return $response;
     }
 
@@ -277,7 +299,7 @@ EOF;
                     return '照理说不会出现这个问题的, 再试一次?';
 
                 case 'internal-error':
-                    return '验证服务器拉了, 再试一次吧';
+                    return 'Turnstile 验证服务器拉了, 再试一次吧';
 
                 case 'missing-input-secret':
                 case 'invalid-input-secret':
