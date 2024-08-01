@@ -87,11 +87,19 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
         $pjaxSupport = new Typecho_Widget_Helper_Form_Element_Radio('pjaxSupport', array(
             'enable' => '启用',
             'disable' => '禁用'
-        ), 'disable', _t('PJAX 支持'), _t('启用后将会在 &lt;header&gt; 中加载验证 JS 并改变部分逻辑以尽量适配 PJAX。'));
+        ), 'disable', _t('PJAX 支持'), _t('启用后将会在 &lt;header&gt; 中加载验证 JS 并改变部分逻辑以尽量适配 PJAX'));
         $jQueryImport = new Typecho_Widget_Helper_Form_Element_Radio('jQueryImport', array(
             'enable' => '启用',
             'disable' => '禁用'
-        ), 'disable', _t('引入 jQuery'), _t('启用后将会引入 jQuery。适用于没有引入 jQuery 的站点，如果主题或者其他插件已经引入了 jQuery，请不要启用。'));
+        ), 'disable', _t('引入 jQuery'), _t('启用后将会引入 jQuery。适用于没有引入 jQuery 的站点，如果主题或者其他插件已经引入了 jQuery，请不要启用'));
+        $useCurl = new Typecho_Widget_Helper_Form_Element_Radio('useCurl', array(
+            'enable' => '启用',
+            'disable' => '禁用'
+        ), 'disable', _t('使用 cURL'), _t('(建议启用) 启用后将会使用 cURL 发送请求，但是需要 PHP 的 cURL 拓展。默认使用 file_get_contents 函数'));
+        $curlVerifyCert = new Typecho_Widget_Helper_Form_Element_Radio('curlVerifyCert', array(
+            'enable' => '启用',
+            'disable' => '禁用'
+        ), 'disable', _t('cURL 证书验证'), _t('启用后将会校验 HTTPS 证书，此选项仅在使用 cURL 时有效'));
         $form->addInput($siteKey);
         $form->addInput($secretKey);
         $form->addInput($enableActions);
@@ -99,6 +107,8 @@ class Turnstile_Plugin implements Typecho_Plugin_Interface
         $form->addInput($strictMode);
         $form->addInput($pjaxSupport);
         $form->addInput($jQueryImport);
+        $form->addInput($useCurl);
+        $form->addInput($curlVerifyCert);
     }
 
     public static function header()
@@ -266,13 +276,19 @@ EOF;
     {
         $payload = array('secret' => $secretKey, 'response' => $turnstile_response);
         if ($strictMode) $payload['remoteip'] = $_SERVER['REMOTE_ADDR'];
-        $stream = stream_context_create(array(
-            'http' => array(
-                'method' => 'POST',
-                'content' => http_build_query($payload)
-            )
-        ));
-        $response = file_get_contents("https://challenges.cloudflare.com/turnstile/v0/siteverify", false, $stream);
+        if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->useCurl == 'enable') {
+            $response = self::CurlPOST(http_build_query($payload), 'https://challenges.cloudflare.com/turnstile/v0/siteverify');
+        } else {
+            $stream = stream_context_create(array(
+                'http' => array(
+                    'method' => 'POST',
+                    'content' => http_build_query($payload)
+                )
+            ));
+            $response = file_get_contents("https://challenges.cloudflare.com/turnstile/v0/siteverify", false, $stream);
+        }
+
+
         $response = json_decode($response, true);
         if (empty($response)) {
             throw new Typecho_Widget_Exception(_t('Turnstile 无响应，请检查服务器网络连接'));
@@ -309,5 +325,72 @@ EOF;
                     return '你食不食人啊? (恼) 如果是的话再试一次?';
             }
         }
+    }
+
+    /**
+     * 以下部分代码来自 MiraiEz
+     * 
+     * MiraiEz Copyright (c) 2021-2024 NKXingXh
+     * License AGPLv3.0: GNU AGPL Version 3 <https://www.gnu.org/licenses/agpl-3.0.html>
+     * This is free software: you are free to change and redistribute it.
+     * There is NO WARRANTY, to the extent permitted by law.
+     * 
+     * Github: https://github.com/nkxingxh/MiraiEz
+     */
+    private static function CurlPOST($payload, $url, $cookie = null, $referer = null, $header = array(), $setopt = array(), $UserAgent = null, ...$other)
+    {
+        //$setopt[] = [CURLOPT_POST, 1];    //当设置了 CURLOPT_POSTFIELDS 时, CURLOPT_POST 默认为 1
+        //$setopt[] = [CURLOPT_POSTFIELDS, $payload];
+        return self::Curl($payload, $url, $cookie, $referer, $header, $setopt, $UserAgent, ...$other);
+    }
+
+    private static function Curl($payload, $url, $cookie = null, $referer = null, $header = array(), $setopt = array(), $UserAgent = null, &$curl = null)
+    {
+        $header = is_array($header) ? $header : array($header);
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_USERAGENT, $UserAgent ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36');
+        if (!empty($header)) {
+            // KV 数组转数字索引
+            foreach ($header as $key => $value) {
+                if (is_string($key)) {
+                    $header[] = "$key: $value";
+                    unset($header[$key]);
+                }
+            }
+            curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
+        }
+        if (!empty($referer)) curl_setopt($curl, CURLOPT_REFERER, $referer);
+        if (!empty($cookie)) curl_setopt($curl, CURLOPT_COOKIE, $cookie);
+        if (!empty($payload)) curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+
+        // 关闭 SSL
+        if (Typecho_Widget::widget('Widget_Options')->plugin('Turnstile')->curlVerifyCert == 'disable') {
+            curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        }
+
+        // 设置信任证书
+        curl_setopt($curl, CURLOPT_CAINFO, __DIR__ . '/../config/curl-ca-bundle.crt');
+
+        // 返回数据不直接显示
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        // 适配 gzip 压缩
+        curl_setopt($curl, CURLOPT_ENCODING, 'gzip, deflate');
+
+        if (!empty($setopt) && is_array($setopt)) {
+            $n = count($setopt);
+            for ($i = 0; $i < $n; $i++) {
+                curl_setopt($curl, $setopt[$i][0], $setopt[$i][1]);
+            }
+        }
+
+        $response = curl_exec($curl);
+
+        // 如果传入了 $curl 参数则不释放
+        if (!array_key_exists(7, func_get_args())) {
+            curl_close($curl);
+        }
+        return $response;
     }
 }
