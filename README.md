@@ -4,6 +4,8 @@
 
 Tips: 插件需要 jQuery 才能正常运行，如没有其他主题或插件引入了 jQuery 则需要在插件设置在启用引入 jQuery。
 
+我的其他插件: [Typecho-Up2WebP: 压缩上传的图片并转换为 WebP 格式](https://github.com/nkxingxh/Typecho-Up2WebP)
+
 ## 使用教程
 
 [https://blog.nkxingxh.top/archives/240/](https://blog.nkxingxh.top/archives/240/)
